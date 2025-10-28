@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Waiting for Information</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f5f5f5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            text-align: center;
+            max-width: 500px;
+            width: 100%;
+        }
+
+        .loading {
+            display: block;
+        }
+
+        .content {
+            display: none;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #007bff;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .status {
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 8px;
+            background: #f8f9fa;
+            font-family: monospace;
+        }
+
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px;
+        }
+
+        button:hover {
+            background: #0056b3;
+        }
+
+        button:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Loading State -->
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <h2>Waiting for Information...</h2>
+            <p>Please wait while we retrieve your data.</p>
+            <div class="status" id="status">Status: Connecting...</div>
+        </div>
+
+        <!-- Content Display -->
+        <div class="content" id="content">
+            <h2>Information Received!</h2>
+            <div class="status" id="receivedData">No data received yet.</div>
+            <button onclick="resetPage()">Wait for New Information</button>
+        </div>
+
+        <!-- Manual Trigger (for testing) -->
+        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
+            <h3>Test Controls</h3>
+            <button onclick="simulateData()">Simulate Data Receipt</button>
+            <button onclick="simulateError()">Simulate Error</button>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let dataReceived = false;
+        let connectionAttempts = 0;
+        const maxAttempts = 5;
+
+        // DOM Elements
+        const loadingEl = document.getElementById('loading');
+        const contentEl = document.getElementById('content');
+        const statusEl = document.getElementById('status');
+        const receivedDataEl = document.getElementById('receivedData');
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            startWaiting();
+        });
+
+        // Main function to wait for information
+        function startWaiting() {
+            dataReceived = false;
+            connectionAttempts = 0;
+            
+            // Show loading state
+            loadingEl.style.display = 'block';
+            contentEl.style.display = 'none';
+            statusEl.textContent = 'Status: Starting connection...';
+            
+            // Start waiting for data
+            waitForData();
+            
+            // You can also set up other methods to receive data:
+            setupWebSocket();
+            setupEventSource();
+            setupPolling();
+        }
+
+        // Method 1: Simulate waiting with timeout (replace with real data source)
+        function waitForData() {
+            statusEl.textContent = `Status: Waiting for data... (Attempt ${connectionAttempts + 1}/${maxAttempts})`;
+            
+            // Simulate network delay
+            setTimeout(() => {
+                if (!dataReceived) {
+                    connectionAttempts++;
+                    
+                    if (connectionAttempts >= maxAttempts) {
+                        statusEl.textContent = 'Status: Connection timeout. No data received.';
+                        // You could trigger a retry here
+                        setTimeout(() => startWaiting(), 5000); // Retry after 5 seconds
+                    } else {
+                        waitForData(); // Continue waiting
+                    }
+                }
+            }, 2000);
+        }
+
+        // Method 2: WebSocket connection
+        function setupWebSocket() {
+            try {
+                // Replace with your WebSocket URL
+                const ws = new WebSocket('wss://echo.websocket.org');
+                
+                ws.onopen = function() {
+                    statusEl.textContent = 'Status: WebSocket connected, waiting for data...';
+                    // You can send a request for data here
+                    // ws.send('request_data');
+                };
+                
+                ws.onmessage = function(event) {
+                    handleReceivedData(event.data, 'WebSocket');
+                };
+                
+                ws.onerror = function(error) {
+                    console.log('WebSocket error:', error);
+                    statusEl.textContent = 'Status: WebSocket connection failed';
+                };
+                
+                ws.onclose = function() {
+                    console.log('WebSocket closed');
+                };
+                
+            } catch (error) {
+                console.log('WebSocket not available:', error);
+            }
+        }
+
+        // Method 3: Server-Sent Events (EventSource)
+        function setupEventSource() {
+            try {
+                // Replace with your EventSource URL
+                // const eventSource = new EventSource('/api/events');
+                
+                // eventSource.onmessage = function(event) {
+                //     handleReceivedData(event.data, 'EventSource');
+                // };
+                
+                // eventSource.onerror = function(error) {
+                //     console.log('EventSource error:', error);
+                // };
+                
+            } catch (error) {
+                console.log('EventSource not available:', error);
+            }
+        }
+
+        // Method 4: Polling (checking periodically)
+        function setupPolling() {
+            // Uncomment to enable polling
+            // setInterval(() => {
+            //     fetchDataFromAPI();
+            // }, 5000); // Poll every 5 seconds
+        }
+
+        // Method 5: Fetch API call
+        async function fetchDataFromAPI() {
+            try {
+                statusEl.textContent = 'Status: Fetching data from API...';
+                
+                // Replace with your API endpoint
+                // const response = await fetch('/api/data');
+                // const data = await response.json();
+                // handleReceivedData(data, 'API');
+                
+            } catch (error) {
+                console.log('API fetch error:', error);
+                statusEl.textContent = 'Status: API request failed';
+            }
+        }
+
+        // Handle received data
+        function handleReceivedData(data, source) {
+            if (dataReceived) return; // Prevent multiple triggers
+            
+            dataReceived = true;
+            
+            // Update UI
+            loadingEl.style.display = 'none';
+            contentEl.style.display = 'block';
+            
+            // Display the received data
+            const displayData = typeof data === 'object' ? JSON.stringify(data, null, 2) : data;
+            receivedDataEl.textContent = `Source: ${source}\nData: ${displayData}`;
+            receivedDataEl.style.background = '#d4edda';
+            receivedDataEl.style.color = '#155724';
+            
+            console.log('Data received from', source, ':', data);
+        }
+
+        // Handle errors
+        function handleError(error) {
+            statusEl.textContent = `Status: Error - ${error.message}`;
+            statusEl.style.background = '#f8d7da';
+            statusEl.style.color = '#721c24';
+        }
+
+        // Reset page to waiting state
+        function resetPage() {
+            startWaiting();
+        }
+
+        // Simulation functions for testing
+        function simulateData() {
+            const sampleData = {
+                id: 12345,
+                message: "Hello! This is simulated data.",
+                timestamp: new Date().toISOString(),
+                user: {
+                    name: "Test User",
+                    email: "test@example.com"
+                }
+            };
+            handleReceivedData(sampleData, 'Simulation');
+        }
+
+        function simulateError() {
+            handleError(new Error('Simulated network error'));
+        }
+
+        // Listen for messages from other windows/tabs (optional)
+        window.addEventListener('message', function(event) {
+            if (event.data && event.data.type === 'NEW_DATA') {
+                handleReceivedData(event.data.payload, 'Window Message');
+            }
+        });
+
+        // Listen for storage events (optional - for cross-tab communication)
+        window.addEventListener('storage', function(event) {
+            if (event.key === 'receivedData' && event.newValue) {
+                handleReceivedData(JSON.parse(event.newValue), 'Local Storage');
+            }
+        });
+
+        // Export function to receive data from external scripts
+        window.receiveExternalData = function(data) {
+            handleReceivedData(data, 'External Script');
+        };
+    </script>
+</body>
+</html>
