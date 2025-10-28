@@ -3,302 +3,317 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Waiting for Information</title>
+    <title>XML/JSON Message Handler</title>
     <style>
         body {
             font-family: Arial, sans-serif;
-            margin: 0;
+            max-width: 800px;
+            margin: 0 auto;
             padding: 20px;
             background: #f5f5f5;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
         }
-
+        
         .container {
             background: white;
-            padding: 40px;
-            border-radius: 12px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-            text-align: center;
-            max-width: 500px;
-            width: 100%;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         }
-
-        .loading {
-            display: block;
-        }
-
-        .content {
-            display: none;
-        }
-
-        .spinner {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #007bff;
-            border-radius: 50%;
-            width: 50px;
-            height: 50px;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 20px;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        .status {
+        
+        .message-area {
             margin: 20px 0;
             padding: 15px;
-            border-radius: 8px;
-            background: #f8f9fa;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background: #f9f9f9;
+            min-height: 100px;
+            white-space: pre-wrap;
             font-family: monospace;
         }
-
+        
+        .status {
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-weight: bold;
+        }
+        
+        .status.waiting {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        
+        .status.received {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        
+        .status.replied {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
         button {
             background: #007bff;
             color: white;
             border: none;
-            padding: 12px 24px;
-            border-radius: 6px;
+            padding: 10px 20px;
+            border-radius: 5px;
             cursor: pointer;
-            font-size: 16px;
-            margin: 10px;
+            margin: 5px;
         }
-
+        
         button:hover {
             background: #0056b3;
         }
-
-        button:disabled {
-            background: #6c757d;
-            cursor: not-allowed;
+        
+        .input-group {
+            margin: 15px 0;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        
+        textarea {
+            width: 100%;
+            height: 120px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-family: monospace;
+            resize: vertical;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <!-- Loading State -->
-        <div class="loading" id="loading">
-            <div class="spinner"></div>
-            <h2>Waiting for Information...</h2>
-            <p>Please wait while we retrieve your data.</p>
-            <div class="status" id="status">Status: Connecting...</div>
+        <h1>XML/JSON Message Handler</h1>
+        
+        <div class="status waiting" id="status">
+            ⏳ Waiting to receive message...
         </div>
-
-        <!-- Content Display -->
-        <div class="content" id="content">
-            <h2>Information Received!</h2>
-            <div class="status" id="receivedData">No data received yet.</div>
-            <button onclick="resetPage()">Wait for New Information</button>
+        
+        <div class="input-group">
+            <label for="messageInput">Send Test Message (XML or JSON):</label>
+            <textarea id="messageInput" placeholder="Paste your XML or JSON message here...">
+<xml>
+  <ToUserName><![CDATA[toUser]]></ToUserName>
+  <FromUserName><![CDATA[fromUser]]></FromUserName>
+  <CreateTime>1348831860</CreateTime>
+  <MsgType><![CDATA[text]]></MsgType>
+  <Content><![CDATA[this is a test]]></Content>
+  <MsgId>1234567890123456</MsgId>
+  <MsgDataId>xxxx</MsgDataId>
+  <Idx>xxxx</Idx>
+</xml></textarea>
         </div>
-
-        <!-- Manual Trigger (for testing) -->
-        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
-            <h3>Test Controls</h3>
-            <button onclick="simulateData()">Simulate Data Receipt</button>
-            <button onclick="simulateError()">Simulate Error</button>
+        
+        <button onclick="sendTestMessage()">Send Test Message</button>
+        <button onclick="startWebhookListener()">Start Webhook Listener</button>
+        <button onclick="clearMessages()">Clear Messages</button>
+        
+        <h3>Received Message:</h3>
+        <div class="message-area" id="receivedMessage">
+            No message received yet...
+        </div>
+        
+        <h3>Reply Message:</h3>
+        <div class="message-area" id="replyMessage">
+            No reply generated yet...
+        </div>
+        
+        <h3>Raw Data:</h3>
+        <div class="message-area" id="rawData">
+            No data processed yet...
         </div>
     </div>
 
     <script>
-        // Global variables
-        let dataReceived = false;
-        let connectionAttempts = 0;
-        const maxAttempts = 5;
-
-        // DOM Elements
-        const loadingEl = document.getElementById('loading');
-        const contentEl = document.getElementById('content');
-        const statusEl = document.getElementById('status');
-        const receivedDataEl = document.getElementById('receivedData');
-
-        // Initialize
-        document.addEventListener('DOMContentLoaded', function() {
-            startWaiting();
-        });
-
-        // Main function to wait for information
-        function startWaiting() {
-            dataReceived = false;
-            connectionAttempts = 0;
+        // Store the last received message data
+        let lastReceivedData = null;
+        
+        // Function to handle incoming messages
+        function handleIncomingMessage(data) {
+            const statusElement = document.getElementById('status');
+            const receivedElement = document.getElementById('receivedMessage');
+            const replyElement = document.getElementById('replyMessage');
+            const rawDataElement = document.getElementById('rawData');
             
-            // Show loading state
-            loadingEl.style.display = 'block';
-            contentEl.style.display = 'none';
-            statusEl.textContent = 'Status: Starting connection...';
+            // Update status
+            statusElement.className = 'status received';
+            statusElement.textContent = '✅ Message received!';
             
-            // Start waiting for data
-            waitForData();
+            // Store the data
+            lastReceivedData = data;
             
-            // You can also set up other methods to receive data:
-            setupWebSocket();
-            setupEventSource();
-            setupPolling();
-        }
-
-        // Method 1: Simulate waiting with timeout (replace with real data source)
-        function waitForData() {
-            statusEl.textContent = `Status: Waiting for data... (Attempt ${connectionAttempts + 1}/${maxAttempts})`;
+            // Display received message
+            if (typeof data === 'string') {
+                // XML string
+                receivedElement.textContent = data;
+            } else {
+                // JSON object
+                receivedElement.textContent = JSON.stringify(data, null, 2);
+            }
             
-            // Simulate network delay
+            // Display raw data info
+            rawDataElement.textContent = `Data type: ${typeof data}\n\nRaw content:\n${data}`;
+            
+            // Generate and display reply
+            const reply = generateReply(data);
+            replyElement.textContent = reply;
+            
+            // Update status after a delay
             setTimeout(() => {
-                if (!dataReceived) {
-                    connectionAttempts++;
-                    
-                    if (connectionAttempts >= maxAttempts) {
-                        statusEl.textContent = 'Status: Connection timeout. No data received.';
-                        // You could trigger a retry here
-                        setTimeout(() => startWaiting(), 5000); // Retry after 5 seconds
-                    } else {
-                        waitForData(); // Continue waiting
-                    }
-                }
-            }, 2000);
+                statusElement.className = 'status replied';
+                statusElement.textContent = '✅ Reply generated successfully!';
+            }, 1000);
+            
+            console.log('Message handled:', data);
+            return reply;
         }
-
-        // Method 2: WebSocket connection
-        function setupWebSocket() {
-            try {
-                // Replace with your WebSocket URL
-                const ws = new WebSocket('wss://echo.websocket.org');
-                
-                ws.onopen = function() {
-                    statusEl.textContent = 'Status: WebSocket connected, waiting for data...';
-                    // You can send a request for data here
-                    // ws.send('request_data');
-                };
-                
-                ws.onmessage = function(event) {
-                    handleReceivedData(event.data, 'WebSocket');
-                };
-                
-                ws.onerror = function(error) {
-                    console.log('WebSocket error:', error);
-                    statusEl.textContent = 'Status: WebSocket connection failed';
-                };
-                
-                ws.onclose = function() {
-                    console.log('WebSocket closed');
-                };
-                
-            } catch (error) {
-                console.log('WebSocket not available:', error);
+        
+        // Function to generate reply based on received message
+        function generateReply(receivedData) {
+            let replyData;
+            
+            if (typeof receivedData === 'string') {
+                // Parse XML and create XML reply
+                replyData = generateXmlReply(receivedData);
+            } else {
+                // Create JSON reply
+                replyData = generateJsonReply(receivedData);
             }
-        }
-
-        // Method 3: Server-Sent Events (EventSource)
-        function setupEventSource() {
-            try {
-                // Replace with your EventSource URL
-                // const eventSource = new EventSource('/api/events');
-                
-                // eventSource.onmessage = function(event) {
-                //     handleReceivedData(event.data, 'EventSource');
-                // };
-                
-                // eventSource.onerror = function(error) {
-                //     console.log('EventSource error:', error);
-                // };
-                
-            } catch (error) {
-                console.log('EventSource not available:', error);
-            }
-        }
-
-        // Method 4: Polling (checking periodically)
-        function setupPolling() {
-            // Uncomment to enable polling
-            // setInterval(() => {
-            //     fetchDataFromAPI();
-            // }, 5000); // Poll every 5 seconds
-        }
-
-        // Method 5: Fetch API call
-        async function fetchDataFromAPI() {
-            try {
-                statusEl.textContent = 'Status: Fetching data from API...';
-                
-                // Replace with your API endpoint
-                // const response = await fetch('/api/data');
-                // const data = await response.json();
-                // handleReceivedData(data, 'API');
-                
-            } catch (error) {
-                console.log('API fetch error:', error);
-                statusEl.textContent = 'Status: API request failed';
-            }
-        }
-
-        // Handle received data
-        function handleReceivedData(data, source) {
-            if (dataReceived) return; // Prevent multiple triggers
             
-            dataReceived = true;
-            
-            // Update UI
-            loadingEl.style.display = 'none';
-            contentEl.style.display = 'block';
-            
-            // Display the received data
-            const displayData = typeof data === 'object' ? JSON.stringify(data, null, 2) : data;
-            receivedDataEl.textContent = `Source: ${source}\nData: ${displayData}`;
-            receivedDataEl.style.background = '#d4edda';
-            receivedDataEl.style.color = '#155724';
-            
-            console.log('Data received from', source, ':', data);
+            return replyData;
         }
-
-        // Handle errors
-        function handleError(error) {
-            statusEl.textContent = `Status: Error - ${error.message}`;
-            statusEl.style.background = '#f8d7da';
-            statusEl.style.color = '#721c24';
+        
+        // Generate XML format reply
+        function generateXmlReply(xmlData) {
+            // Simple XML parsing (in real app, use DOMParser)
+            const toUserMatch = xmlData.match(/<ToUserName><!\[CDATA\[(.*?)\]\]><\/ToUserName>/);
+            const fromUserMatch = xmlData.match(/<FromUserName><!\[CDATA\[(.*?)\]\]><\/FromUserName>/);
+            const contentMatch = xmlData.match(/<Content><!\[CDATA\[(.*?)\]\]><\/Content>/);
+            
+            const toUser = toUserMatch ? toUserMatch[1] : 'toUser';
+            const fromUser = fromUserMatch ? fromUserMatch[1] : 'fromUser';
+            const receivedContent = contentMatch ? contentMatch[1] : 'unknown message';
+            
+            const currentTime = Math.floor(Date.now() / 1000);
+            
+            const replyXml = `<xml>
+  <ToUserName><![CDATA[${fromUser}]]></ToUserName>
+  <FromUserName><![CDATA[${toUser}]]></FromUserName>
+  <CreateTime>${currentTime}</CreateTime>
+  <MsgType><![CDATA[text]]></MsgType>
+  <Content><![CDATA[Received your message: "${receivedContent}" at ${new Date().toLocaleString()}]]></Content>
+</xml>`;
+            
+            return replyXml;
         }
-
-        // Reset page to waiting state
-        function resetPage() {
-            startWaiting();
-        }
-
-        // Simulation functions for testing
-        function simulateData() {
-            const sampleData = {
-                id: 12345,
-                message: "Hello! This is simulated data.",
-                timestamp: new Date().toISOString(),
-                user: {
-                    name: "Test User",
-                    email: "test@example.com"
-                }
+        
+        // Generate JSON format reply
+        function generateJsonReply(jsonData) {
+            const currentTime = Math.floor(Date.now() / 1000);
+            
+            const replyJson = {
+                ToUserName: jsonData.FromUserName || 'fromUser',
+                FromUserName: jsonData.ToUserName || 'toUser',
+                CreateTime: currentTime,
+                MsgType: "text",
+                Content: `Received your ${jsonData.MsgType || 'unknown'} message: "${jsonData.Content || 'No content'}"`,
+                OriginalMsgId: jsonData.MsgId || null,
+                ResponseTime: new Date().toISOString()
             };
-            handleReceivedData(sampleData, 'Simulation');
+            
+            return JSON.stringify(replyJson, null, 2);
         }
-
-        function simulateError() {
-            handleError(new Error('Simulated network error'));
+        
+        // Function to parse incoming data (XML or JSON)
+        function parseIncomingData(data) {
+            // Try to parse as JSON first
+            try {
+                const jsonData = JSON.parse(data);
+                return jsonData;
+            } catch (e) {
+                // If not JSON, treat as XML
+                return data;
+            }
         }
-
-        // Listen for messages from other windows/tabs (optional)
-        window.addEventListener('message', function(event) {
-            if (event.data && event.data.type === 'NEW_DATA') {
-                handleReceivedData(event.data.payload, 'Window Message');
+        
+        // Simulate receiving a message (for testing)
+        function sendTestMessage() {
+            const messageInput = document.getElementById('messageInput');
+            const message = messageInput.value.trim();
+            
+            if (!message) {
+                alert('Please enter a message to send');
+                return;
             }
+            
+            const parsedData = parseIncomingData(message);
+            handleIncomingMessage(parsedData);
+        }
+        
+        // Start a simple webhook listener (simulated)
+        function startWebhookListener() {
+            const statusElement = document.getElementById('status');
+            statusElement.className = 'status waiting';
+            statusElement.textContent = '🌐 Webhook listener active - waiting for POST requests...';
+            
+            // In a real application, this would be a server endpoint
+            console.log('Webhook listener started. In a real application, this would handle POST requests.');
+            alert('Webhook listener started. In a real application, setup a server endpoint to receive POST requests.');
+        }
+        
+        // Clear all messages
+        function clearMessages() {
+            document.getElementById('status').className = 'status waiting';
+            document.getElementById('status').textContent = '⏳ Waiting to receive message...';
+            document.getElementById('receivedMessage').textContent = 'No message received yet...';
+            document.getElementById('replyMessage').textContent = 'No reply generated yet...';
+            document.getElementById('rawData').textContent = 'No data processed yet...';
+            lastReceivedData = null;
+        }
+        
+        // Example: Simulate receiving different message types
+        function receiveSampleXml() {
+            const sampleXml = `<xml>
+  <ToUserName><![CDATA[toUser]]></ToUserName>
+  <FromUserName><![CDATA[fromUser]]></FromUserName>
+  <CreateTime>${Math.floor(Date.now() / 1000)}</CreateTime>
+  <MsgType><![CDATA[text]]></MsgType>
+  <Content><![CDATA[Hello from XML!]]></Content>
+  <MsgId>1234567890123456</MsgId>
+</xml>`;
+            
+            document.getElementById('messageInput').value = sampleXml;
+            handleIncomingMessage(sampleXml);
+        }
+        
+        function receiveSampleJson() {
+            const sampleJson = {
+                ToUserName: "toUser",
+                FromUserName: "fromUser",
+                CreateTime: Math.floor(Date.now() / 1000),
+                MsgType: "text",
+                Content: "Hello from JSON!",
+                MsgId: "1234567890123456"
+            };
+            
+            document.getElementById('messageInput').value = JSON.stringify(sampleJson, null, 2);
+            handleIncomingMessage(sampleJson);
+        }
+        
+        // Initialize with sample XML
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Message handler initialized. Ready to receive XML or JSON messages.');
         });
-
-        // Listen for storage events (optional - for cross-tab communication)
-        window.addEventListener('storage', function(event) {
-            if (event.key === 'receivedData' && event.newValue) {
-                handleReceivedData(JSON.parse(event.newValue), 'Local Storage');
-            }
-        });
-
-        // Export function to receive data from external scripts
-        window.receiveExternalData = function(data) {
-            handleReceivedData(data, 'External Script');
-        };
     </script>
 </body>
 </html>
